@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f7f6f2">
+<title>Картотека корпоративных кейсов</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+/* Layout: sticky search rail + collapsible topic chips over an incrementally rendered feed of case cards.
+   Colors come from Telegram theme params with a standalone-browser fallback. */
+:root{
+  --paper:#f7f6f2; --panel:#fffefb; --ink:#1d1f24; --muted:#6b6f78;
+  --rule:#ddd9cf; --accent:#7a2230; --accent-soft:#f0e2e2; --mark:#f6e0a8;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#15171b; --panel:#1c1f25; --ink:#e8e6e1; --muted:#9aa0aa;
+  --rule:#30343c; --accent:#d98a94; --accent-soft:#3a2229; --mark:#5c4a1e;
+  color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --paper:#15171b; --panel:#1c1f25; --ink:#e8e6e1; --muted:#9aa0aa;
+  --rule:#30343c; --accent:#d98a94; --accent-soft:#3a2229; --mark:#5c4a1e;
+  color-scheme:dark;}
+/* Inside Telegram the client's palette wins */
+body.tg{
+  --paper:var(--tg-theme-bg-color,#f7f6f2);
+  --panel:var(--tg-theme-secondary-bg-color,#fffefb);
+  --ink:var(--tg-theme-text-color,#1d1f24);
+  --muted:var(--tg-theme-hint-color,#6b6f78);
+  --accent:var(--tg-theme-link-color,#7a2230);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);
+  font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%;
+  padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+.rail{position:sticky;top:0;z-index:5;background:var(--paper);
+  padding:10px 16px 8px;padding-top:calc(10px + env(safe-area-inset-top));
+  border-bottom:1px solid var(--rule)}
+.searchrow{display:flex;align-items:center;gap:8px}
+input[type=search]{flex:1;min-width:0;font:inherit;font-size:15px;color:var(--ink);
+  background:var(--panel);border:1px solid var(--rule);border-radius:10px;
+  padding:9px 12px;-webkit-appearance:none;appearance:none}
+input[type=search]:focus{outline:none;border-color:var(--accent)}
+.count{font-family:var(--mono);font-size:.7rem;color:var(--muted);
+  white-space:nowrap;font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:baseline}
+.chip{font-size:.72rem;font-family:inherit;padding:5px 10px;border:1px solid var(--rule);
+  border-radius:20px;background:transparent;color:var(--muted);cursor:pointer;
+  -webkit-tap-highlight-color:transparent}
+.chip.extra{display:none}
+.chip .n{font-family:var(--mono);font-size:.64rem;opacity:.65;margin-left:4px}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);
+  color:var(--accent);font-weight:600}
+.chiptoggle{font-size:.72rem;font-family:inherit;padding:5px 10px;border:1px dashed var(--rule);
+  border-radius:20px;background:transparent;color:var(--accent);cursor:pointer;white-space:nowrap}
+.hint{font-size:.75rem;color:var(--muted);margin:12px 16px 0}
+ol.list{list-style:none;margin:0;padding:0 16px}
+li.rec{border-bottom:1px solid var(--rule);padding:16px 0}
+li.rec:last-child{border-bottom:none}
+.rec h2{font-size:1rem;font-weight:600;margin:0 0 6px;line-height:1.35}
+.rec a.t{color:var(--ink);text-decoration:none}
+.rec a.t:active{color:var(--accent)}
+.meta{font-family:var(--mono);font-size:.7rem;color:var(--muted);margin:0 0 7px;
+  display:flex;flex-wrap:wrap;gap:3px 12px;font-variant-numeric:tabular-nums}
+.meta .court{color:var(--accent)}
+.gist{margin:0 0 8px;font-size:.9rem}
+.tags{display:flex;flex-wrap:wrap;gap:5px;margin:0}
+.tag{font-size:.66rem;color:var(--muted);border:1px solid var(--rule);border-radius:3px;padding:2px 6px}
+mark{background:var(--mark);color:inherit;border-radius:2px}
+.empty,.loading{padding:28px 16px;color:var(--muted);font-size:.9rem;text-align:center}
+footer{margin:18px 16px 0;padding-top:14px;border-top:1px solid var(--rule);
+  font-size:.72rem;color:var(--muted)}
+footer a{color:var(--accent)}
+#more{display:block;width:calc(100% - 32px);margin:14px 16px 0;padding:11px;
+  font:inherit;font-size:.85rem;color:var(--accent);background:transparent;
+  border:1px solid var(--rule);border-radius:10px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="rail">
+  <div class="searchrow">
+    <input id="q" type="search" enterkeyhint="search" placeholder="опишите ситуацию своими словами" autocomplete="off">
+    <span class="count" id="count"></span>
+  </div>
+  <div class="chips" id="chips"></div>
+</div>
+<p class="hint" id="hint"></p>
+<ol class="list" id="list"></ol>
+<button id="more" hidden>Показать ещё</button>
+<footer>
+  Разборы из канала <a id="chlink" href="https://t.me/corplawpro">@corplawpro</a>.
+  Карточка открывает исходный пост с мотивировкой и реквизитами судебного акта.
+</footer>
+
+<script>
+const tg = window.Telegram && window.Telegram.WebApp;
+if (tg) {
+  document.body.classList.add('tg');
+  try {
+    tg.ready(); tg.expand();
+    tg.disableVerticalSwipes && tg.disableVerticalSwipes();
+    tg.setHeaderColor && tg.setHeaderColor('secondary_bg_color');
+    tg.onEvent('themeChanged', () => {});
+  } catch (e) {}
+}
+const haptic = (kind) => {
+  try {
+    if (!tg || !tg.HapticFeedback) return;
+    if (kind === 'select') tg.HapticFeedback.selectionChanged();
+    else tg.HapticFeedback.impactOccurred('light');
+  } catch (e) {}
+};
+const openPost = (url) => {
+  try { if (tg && tg.openTelegramLink) { tg.openTelegramLink(url); return true; } } catch (e) {}
+  return false;
+};
+
+const listEl = document.getElementById('list');
+const countEl = document.getElementById('count');
+const hintEl = document.getElementById('hint');
+const chipsEl = document.getElementById('chips');
+const qEl = document.getElementById('q');
+const moreEl = document.getElementById('more');
+
+const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const norm = s => (s||'').toLowerCase().replace(/ё/g,'е').replace(/[^0-9a-zа-я\/-]+/g,' ').trim();
+// crude Russian stemming: drop common inflectional endings so "продажа участка" matches "продал участки"
+const stem = w => w.length > 5 ? w.replace(/(ами|ями|ость|ение|ений|ого|ему|ыми|ими|ах|ях|ов|ев|ем|ом|ой|ей|ую|юю|ые|ие|ый|ий|ая|яя|ла|ли|ло|ть|ся|а|я|у|ю|е|и|ы|о|ь)$/,'') : w;
+
+const PAGE = 30, TOP_N = 8;
+let DATA = [], activeTags = new Set(), chipsOpen = false, shown = 0, rows = [], terms = [];
+const chipOf = {};
+
+fetch('cases.json')
+  .then(r => r.json())
+  .then(data => {
+    DATA = data;
+    DATA.forEach(r => {
+      r._k = norm([r.title, r.gist, (r.keywords||[]).join(' '), (r.tags||[]).join(' '), r.court, r.case_no, r.act_date].join(' '));
+      r._s = r._k.split(' ').map(stem).join(' ');
+      r._t = norm(r.title);
+    });
+    buildChips();
+    render();
+  })
+  .catch(() => { listEl.innerHTML = '<li class="empty">Не удалось загрузить картотеку. Проверьте связь и откройте приложение заново.</li>'; });
+
+function buildChips() {
+  const tagCount = {};
+  DATA.forEach(r => (r.tags||[]).forEach(t => tagCount[t] = (tagCount[t]||0) + 1));
+  const allTags = Object.keys(tagCount).sort((a,b) => tagCount[b]-tagCount[a] || a.localeCompare(b,'ru'));
+  allTags.forEach((t, i) => {
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.type = 'button';
+    b.innerHTML = esc(t.replace(/_/g,' ')) + '<span class="n">' + tagCount[t] + '</span>';
+    b.setAttribute('aria-pressed','false');
+    b.onclick = () => {
+      if (activeTags.has(t)) { activeTags.delete(t); b.setAttribute('aria-pressed','false'); }
+      else { activeTags.add(t); b.setAttribute('aria-pressed','true'); }
+      haptic('select'); syncChips(); render();
+    };
+    chipOf[t] = b;
+    chipsEl.appendChild(b);
+  });
+  const toggle = document.createElement('button');
+  toggle.className = 'chiptoggle'; toggle.type = 'button';
+  chipsEl.appendChild(toggle);
+  toggle.onclick = () => { chipsOpen = !chipsOpen; haptic('select'); syncChips(); };
+  // Collapsed view keeps the frequent topics plus whatever is currently selected.
+  window.syncChips = function () {
+    let hidden = 0;
+    allTags.forEach((t, i) => {
+      const hide = !chipsOpen && i >= TOP_N && !activeTags.has(t);
+      chipOf[t].classList.toggle('extra', hide);
+      if (hide) hidden++;
+    });
+    toggle.textContent = chipsOpen ? 'Свернуть темы' : 'Ещё ' + hidden + ' тем';
+    toggle.setAttribute('aria-expanded', chipsOpen ? 'true' : 'false');
+  };
+  syncChips();
+}
+
+function score(r) {
+  // Long, natural-language queries rarely match every word: rank by coverage instead
+  // of demanding all terms, keeping short queries strict.
+  let hit = 0, s = 0;
+  for (const t of terms) {
+    const st = stem(t);
+    let v = 0;
+    if (r._k.includes(t)) v = 3;
+    else if (st.length > 2 && r._s.includes(st)) v = 2;
+    if (!v) continue;
+    hit++;
+    s += v;
+    if (r._t.includes(t)) s += 2;
+  }
+  const need = terms.length <= 2 ? terms.length : Math.max(2, Math.ceil(terms.length * 0.5));
+  return hit >= need ? hit * 10 + s : -1;
+}
+
+function hl(text, t) {
+  if (!t.length) return esc(text);
+  const pat = t.map(x => x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).sort((a,b)=>b.length-a.length).join('|');
+  return esc(text).replace(new RegExp('('+pat+')','gi'), '<mark>$1</mark>');
+}
+
+function card(r) {
+  return '<li class="rec">' +
+    '<h2><a class="t" href="https://t.me/corplawpro/' + r.post + '" data-post="' + r.post + '">' + hl(r.title, terms) + '</a></h2>' +
+    '<p class="meta">' +
+      (r.court ? '<span class="court">' + esc(r.court) + '</span>' : '') +
+      (r.act_date ? '<span>' + esc(r.act_date.split('-').reverse().join('.')) + '</span>' : '') +
+      (r.case_no ? '<span>' + hl(r.case_no, terms) + '</span>' : '') +
+      '<span>пост №' + r.post + '</span>' +
+    '</p>' +
+    '<p class="gist">' + hl(r.gist, terms) + '</p>' +
+    '<p class="tags">' + (r.tags||[]).map(t => '<span class="tag">' + esc(t.replace(/_/g,' ')) + '</span>').join('') + '</p>' +
+  '</li>';
+}
+
+function appendChunk() {
+  const slice = rows.slice(shown, shown + PAGE);
+  listEl.insertAdjacentHTML('beforeend', slice.map(card).join(''));
+  shown += slice.length;
+  const left = rows.length - shown;
+  moreEl.hidden = left <= 0;
+  moreEl.textContent = 'Показать ещё ' + Math.min(left, PAGE) + ' из ' + left;
+}
+
+function render() {
+  const raw = norm(qEl.value);
+  terms = raw ? raw.split(' ').filter(w => w.length > 2) : [];
+  rows = DATA.filter(r => activeTags.size === 0 || (r.tags||[]).some(t => activeTags.has(t)));
+  if (terms.length) {
+    rows = rows.map(r => ({ r, s: score(r) })).filter(x => x.s >= 0)
+               .sort((a,b) => b.s - a.s || b.r.post - a.r.post).map(x => x.r);
+  } else {
+    rows = rows.slice().sort((a,b) => b.post - a.post);
+  }
+  countEl.textContent = rows.length + '/' + DATA.length;
+  hintEl.textContent = terms.length || activeTags.size
+    ? ''
+    : 'Все кейсы, новые сверху. Поиск понимает словоформы, ищет по фабуле, ключевым словам, суду и номеру дела.';
+  listEl.innerHTML = '';
+  shown = 0;
+  if (!rows.length) {
+    moreEl.hidden = true;
+    listEl.innerHTML = '<li class="empty">Ничего не нашлось. Попробуйте короче — «убытки директор», «выход из ООО» — или номер дела.</li>';
+  } else {
+    appendChunk();
+  }
+  syncBack();
+}
+
+// Telegram back button clears the active search and filters
+function syncBack() {
+  if (!tg || !tg.BackButton) return;
+  try {
+    if (terms.length || activeTags.size) tg.BackButton.show();
+    else tg.BackButton.hide();
+  } catch (e) {}
+}
+if (tg && tg.BackButton) {
+  try {
+    tg.BackButton.onClick(() => {
+      qEl.value = '';
+      activeTags.forEach(t => chipOf[t] && chipOf[t].setAttribute('aria-pressed','false'));
+      activeTags.clear();
+      syncChips(); render();
+      window.scrollTo({ top: 0 });
+    });
+  } catch (e) {}
+}
+
+moreEl.onclick = () => { haptic(); appendChunk(); };
+
+let timer;
+qEl.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(render, 160); });
+qEl.addEventListener('search', render);
+
+// Posts and the channel link open inside Telegram rather than an external browser
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a[href^="https://t.me/"]');
+  if (!a) return;
+  haptic();
+  if (openPost(a.getAttribute('href'))) e.preventDefault();
+}, true);
+</script>
+</body>
+</html>
