@@ -47,6 +47,12 @@ input[type=search]:focus{outline:none;border-color:var(--accent)}
 .count{font-family:var(--mono);font-size:.7rem;color:var(--muted);
   white-space:nowrap;font-variant-numeric:tabular-nums}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:baseline}
+/* Раскрытый список тем прокручивается сам, иначе нижние чипы недостижимы */
+.chips.open{max-height:min(42vh,320px);overflow-y:auto;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;padding:2px 2px 8px;margin-left:-2px;
+  border-bottom:1px solid var(--rule)}
+.chips.open::-webkit-scrollbar{width:4px}
+.chips.open::-webkit-scrollbar-thumb{background:var(--rule);border-radius:4px}
 .chip{font-size:.72rem;font-family:inherit;padding:5px 10px;border:1px solid var(--rule);
   border-radius:20px;background:transparent;color:var(--muted);cursor:pointer;
   -webkit-tap-highlight-color:transparent}
@@ -178,6 +184,7 @@ function buildChips() {
       chipOf[t].classList.toggle('extra', hide);
       if (hide) hidden++;
     });
+    chipsEl.classList.toggle('open', chipsOpen);
     toggle.textContent = chipsOpen ? 'Свернуть темы' : 'Ещё ' + hidden + ' тем';
     toggle.setAttribute('aria-expanded', chipsOpen ? 'true' : 'false');
   };
