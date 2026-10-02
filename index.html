@@ -48,7 +48,7 @@ input[type=search]:focus{outline:none;border-color:var(--accent)}
   white-space:nowrap;font-variant-numeric:tabular-nums}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:baseline}
 /* Раскрытый список тем прокручивается сам, иначе нижние чипы недостижимы */
-.chips.open{max-height:min(42vh,320px);overflow-y:auto;overscroll-behavior:contain;
+.chips.open{max-height:max(180px,min(42vh,320px));overflow-y:auto;overscroll-behavior:contain;
   -webkit-overflow-scrolling:touch;padding:2px 2px 8px;margin-left:-2px;
   border-bottom:1px solid var(--rule)}
 .chips.open::-webkit-scrollbar{width:4px}
